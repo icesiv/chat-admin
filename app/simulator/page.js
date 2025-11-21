@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function TestChatBot() {
+  const router = useRouter();
   // --- State for Configuration (Sidebar) ---
   // Initialized with values from .env.local
   const [config, setConfig] = useState({
@@ -15,7 +17,7 @@ export default function TestChatBot() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Auto-scroll to bottom of chat
   const messagesEndRef = useRef(null);
 
@@ -31,7 +33,7 @@ export default function TestChatBot() {
   const getCurrentTimeFormatted = () => {
     const now = new Date();
     const pad = (num) => num.toString().padStart(2, '0');
-    
+
     const year = now.getFullYear();
     const month = pad(now.getMonth() + 1);
     const day = pad(now.getDate());
@@ -88,7 +90,7 @@ export default function TestChatBot() {
       // 4. Call the API using Env URL
       // Note: We append '/messages' to the base URL from env
       const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/messages`;
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: headers,
@@ -110,11 +112,11 @@ export default function TestChatBot() {
       } else {
         console.error("API Error:", data);
         setMessages((prev) => [...prev, {
-            id: Date.now() + 1,
-            role: 'system',
-            text: `Error: ${data.message || 'Request failed'}`,
-            time: currentTime,
-          }]);
+          id: Date.now() + 1,
+          role: 'system',
+          text: `Error: ${data.message || 'Request failed'}`,
+          time: currentTime,
+        }]);
       }
 
     } catch (error) {
@@ -132,48 +134,57 @@ export default function TestChatBot() {
 
   return (
     <div className="flex h-screen bg-gray-100 text-slate-800 font-sans">
-      
+
       {/* --- LEFT SIDEBAR: CONFIGURATION --- */}
       <div className="w-80 bg-white border-r border-gray-200 p-6 flex flex-col gap-6 shadow-sm z-10">
         <div>
-          <h2 className="text-xl font-bold text-gray-800 mb-1">Response Tester</h2>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            ← Back to Dashboard
+          </button>
+          <h1 className="text-xl mt-2 font-bold text-gray-900">
+            Response Tester
+          </h1>
+
           <p className="text-xs text-gray-500">Admin Simulation Console</p>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Dealer ID</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={config.dealer_id}
-              onChange={(e) => setConfig({...config, dealer_id: e.target.value})}
+              onChange={(e) => setConfig({ ...config, dealer_id: e.target.value })}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer Name</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={config.sender}
-              onChange={(e) => setConfig({...config, sender: e.target.value})}
+              onChange={(e) => setConfig({ ...config, sender: e.target.value })}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Stock Number</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={config.stock_number}
-              onChange={(e) => setConfig({...config, stock_number: e.target.value})}
+              onChange={(e) => setConfig({ ...config, stock_number: e.target.value })}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono"
             />
           </div>
         </div>
 
         <div className="mt-auto">
-          <button 
+          <button
             onClick={() => setMessages([])}
             className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md text-sm transition-colors"
           >
@@ -184,7 +195,7 @@ export default function TestChatBot() {
 
       {/* --- RIGHT SIDE: CHAT INTERFACE --- */}
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full shadow-2xl bg-white my-4 rounded-xl overflow-hidden">
-        
+
         {/* Header */}
         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white">
           <div className="flex items-center gap-3">
@@ -209,37 +220,35 @@ export default function TestChatBot() {
           )}
 
           {messages.map((msg) => (
-            <div 
-              key={msg.id} 
+            <div
+              key={msg.id}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-[70%] rounded-2xl p-4 shadow-sm ${
-                msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-br-none' 
-                  : msg.role === 'system'
+              <div className={`max-w-[70%] rounded-2xl p-4 shadow-sm ${msg.role === 'user'
+                ? 'bg-blue-600 text-white rounded-br-none'
+                : msg.role === 'system'
                   ? 'bg-red-100 text-red-800 border border-red-200'
                   : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
-              }`}>
+                }`}>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                
+
                 {/* Display Images if AI sends them */}
                 {msg.images && msg.images.length > 0 && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {msg.images.map((img, idx) => (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img 
-                        key={idx} 
-                        src={img} 
-                        alt="Vehicle" 
+                      <img
+                        key={idx}
+                        src={img}
+                        alt="Vehicle"
                         className="rounded-lg w-full h-32 object-cover border border-gray-200"
                       />
                     ))}
                   </div>
                 )}
 
-                <span className={`text-[10px] mt-2 block opacity-70 ${
-                   msg.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                }`}>
+                <span className={`text-[10px] mt-2 block opacity-70 ${msg.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                  }`}>
                   {msg.role === 'user' ? config.sender : 'Dealer'} • {msg.time.split(' ')[1]}
                 </span>
               </div>
