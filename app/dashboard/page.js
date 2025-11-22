@@ -35,24 +35,81 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     try {
-      // Fetching messages to calculate basic stats
-      const response = await api.get('/messages?per_page=5');
+      // Fetching messages to calculate basic stats - fetch more to ensure we get recent convos
+      const response = await api.get('/messages?per_page=50');
       const msgs = response.data?.messages || [];
-      
+
       // Calculate simple stats from the response
       // Note: In a real app, you'd want a dedicated /stats endpoint
       const pending = msgs.filter(m => !m.ai_response).length;
       const appointments = msgs.filter(m => m.appointment).length;
 
+      // Group messages by conversation
+      const conversations = groupMessagesByConversation(msgs);
+
       setStats({
         totalMessages: response.data?.total || 0,
         pendingLeads: pending, // Placeholder logic
         appointments: appointments, // Placeholder logic
-        recentActivity: msgs.slice(0, 4) // Last 4 messages
+        recentActivity: conversations.slice(0, 5) // Top 5 recent conversations
       });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     }
+  };
+
+  // Helper: Parse dates safely across browsers (Safari fix)
+  const safelyParseDate = (dateString) => {
+    if (!dateString) return new Date();
+    return new Date(dateString);
+  };
+
+  const groupMessagesByConversation = (messages) => {
+    const convos = {};
+
+    messages.forEach(msg => {
+      // Create a unique key for the conversation
+      const dealer = msg.dealer_id || 'Unknown';
+      const stock = msg.stock_number || 'General';
+      const sender = msg.sender || 'Unknown';
+
+      const key = `${sender}-${stock}-${dealer}`;
+
+      if (!convos[key]) {
+        convos[key] = {
+          id: key,
+          sender: sender,
+          stock_number: stock,
+          dealer_id: dealer,
+          messages: [],
+          lastMessage: msg,
+          hasAppointment: false,
+          appointment: null,
+        };
+      }
+
+      // Add message to list
+      convos[key].messages.push(msg);
+
+      // Check for appointment
+      if (msg.appointment) {
+        convos[key].hasAppointment = true;
+        convos[key].appointment = msg.appointment;
+      }
+
+      // Update last message tracking
+      const msgTime = safelyParseDate(msg.message_time);
+      const lastMsgTime = safelyParseDate(convos[key].lastMessage.message_time);
+
+      if (msgTime > lastMsgTime) {
+        convos[key].lastMessage = msg;
+      }
+    });
+
+    // Convert object to array and sort by most recent message
+    return Object.values(convos).sort((a, b) =>
+      safelyParseDate(b.lastMessage.message_time) - safelyParseDate(a.lastMessage.message_time)
+    );
   };
 
   if (loading || !user) {
@@ -68,12 +125,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      
+
       {/* --- Top Navigation Bar --- */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            
+
             {/* Brand */}
             <div className="flex items-center gap-3">
               <div className="bg-blue-600 text-white p-1.5 rounded-lg">
@@ -107,7 +164,7 @@ export default function DashboardPage() {
 
       {/* --- Main Dashboard Content --- */}
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        
+
         {/* Page Title */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Dashboard Overview</h1>
@@ -151,8 +208,8 @@ export default function DashboardPage() {
             <div className="text-sm text-slate-500">Active Inventory</div>
           </div>
 
-           {/* Stat Card 4 */}
-           <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg">
+          {/* Stat Card 4 */}
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-white/20 rounded-lg text-white">
                 <Icons.Bot />
@@ -165,12 +222,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           {/* Quick Actions Panel */}
           <div className="lg:col-span-2">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Management Console</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
+
               <button
                 onClick={() => router.push('/messages')}
                 className="group p-5 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-blue-500 hover:ring-1 hover:ring-blue-500 transition-all text-left flex items-start gap-4"
@@ -221,16 +278,19 @@ export default function DashboardPage() {
                 <div className="p-6 text-center text-slate-400 text-sm">No recent activity</div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {stats.recentActivity.map((msg, idx) => (
+                  {stats.recentActivity.map((conv, idx) => (
                     <div key={idx} className="p-4 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => router.push('/messages')}>
                       <div className="flex justify-between items-start mb-1">
-                        <span className="font-semibold text-sm text-slate-800">{msg.sender}</span>
-                        <span className="text-[10px] text-slate-400">{new Date(msg.message_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                        <span className="font-semibold text-sm text-slate-800">{conv.sender}</span>
+                        <span className="text-[10px] text-slate-400">{new Date(conv.lastMessage.message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <p className="text-xs text-slate-500 truncate">
-                         Stock: <span className="font-mono text-blue-600">{msg.stock_number}</span>
+                        Stock: <span className="font-mono text-blue-600">{conv.stock_number}</span>
                       </p>
-                      <p className="text-xs text-slate-600 mt-1 line-clamp-1">"{msg.message}"</p>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-1">
+                        {conv.lastMessage.role === 'user' ? '👤 ' : '🤖 '}
+                        "{conv.lastMessage.message || conv.lastMessage.ai_response}"
+                      </p>
                     </div>
                   ))}
                 </div>
